@@ -23,13 +23,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json, csv, urllib.parse, logging, os
+import json, csv, urllib.parse, os, re
 import boto3
 
 from salesforce import Salesforce
 from sf_util import get_arg, parse_date, split_bucket_key
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 s3 = boto3.client("s3")
 pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
@@ -50,11 +49,11 @@ def lambda_handler(event, context):
   data = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode()
 
   sf = Salesforce()
-  sf.sign_in()
 
   for record in csv.DictReader(data.split("\n")):
     queue_record = prepare_queue_record(record, event_record['eventTime'])
-    ac_record_id = "%s%s" % (queue_record[pnamespace + 'AC_Object_Name__c'], queue_record[pnamespace + 'StartInterval__c'])
+    queue_name = re.sub(r'[-\s\W]+', '', queue_record[pnamespace + 'AC_Object_Name__c'])
+    ac_record_id = "%s%s" % (queue_name, queue_record[pnamespace + 'StartInterval__c'])
     #logger.info("sfIntervalAgent ac_record_id: %s" % ac_record_id)
     #logger.info("sfIntervalAgent record: %s" % queue_record)
     # logger.info("sfIntervalAgent record: %s" % agent_record)
@@ -76,8 +75,10 @@ def label_parser(key):
 
   if key.lower() == "queue":
     return pnamespace + "AC_Object_Name__c"
+  
+  key = re.sub(r'[-\s]+', '_', key)
 
-  return pnamespace + "%s__c" % key.replace(" ", "_")
+  return pnamespace + "%s__c" % key
 
 def value_parser(value):
   return value.replace("%", "") if len(value) > 0 else None

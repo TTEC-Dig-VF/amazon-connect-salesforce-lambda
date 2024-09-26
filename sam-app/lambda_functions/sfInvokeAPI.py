@@ -23,13 +23,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import logging, os, json, phonenumbers
+import os, json, phonenumbers
 from salesforce import Salesforce
 from datetime import datetime, timedelta
 from sf_util import parse_date, text_replace_string
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
+pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
+if not pnamespace or pnamespace == '-':
+    logger.info("SF_ADAPTER_NAMESPACE is empty")
+    pnamespace = ''
+else:
+    pnamespace = pnamespace + "__"
+    
+    
 def removekey(d, key):
     r = dict(d)
     del r[key]
@@ -38,7 +45,6 @@ def removekey(d, key):
 def lambda_handler(event, context):
   logger.info("event: %s" % json.dumps(event))
   sf = Salesforce()
-  sf.sign_in()
 
   sf_operation = str(event['Details']['Parameters']['sf_operation'])
   parameters = dict(event['Details']['Parameters'])
@@ -69,6 +75,10 @@ def lambda_handler(event, context):
     resp = search(sf=sf, **event['Details']['Parameters'])
   elif (sf_operation == "searchOne"):
     resp = searchOne(sf=sf, **event['Details']['Parameters'])
+  elif (sf_operation == "searchSOSL"):
+    resp = searchSOSL(sf=sf, **event['Details']['Parameters'])
+  elif (sf_operation == "searchOneSOSL"):
+    resp = searchOneSOSL(sf=sf, **event['Details']['Parameters'])
   else:
     msg = "sf_operation unknown"
     logger.error(msg)
@@ -97,14 +107,26 @@ def where_parser(key, value):
   return "%s='%s'" % (key, value)
 
 def create(sf, sf_object, **kwargs):
-  data = {k:parse_date(v) for k,v in kwargs.items()}
+  # Temp fix for using pipe for ContactLensMatchedCategories
+  data = {}
+  if (sf_object == pnamespace + 'AC_ContactChannelAnalytics__c'):
+    data = {k:v for k,v in kwargs.items()}
+  else: 
+    data = {k:parse_date(v) for k,v in kwargs.items()} 
   return {'Id':sf.create(sobject=sf_object, data=data)}
 
 def update(sf, sf_object, sf_id, **kwargs):
-  data = {k:parse_date(v) for k,v in kwargs.items()}
+  # Temp fix for using pipe for ContactLensMatchedCategories
+  data = {}
+  if (sf_object == pnamespace + 'AC_ContactChannelAnalytics__c'):
+    data = {k:v for k,v in kwargs.items()}
+  else: 
+    data = {k:parse_date(v) for k,v in kwargs.items()} 
   return {'Status':sf.update(sobject=sf_object, sobj_id=sf_id, data=data)}
 
 def phoneLookup(sf, phone, sf_fields):
+  if (phone.lower() == 'anonymous'):
+    return {'sf_count':0}
   phone_national = str(phonenumbers.parse(phone, None).national_number)
 
   data = {
@@ -130,10 +152,24 @@ def delete(sf, sf_object, sf_id):
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def lookup_all(sf, sf_object, sf_fields, **kwargs):
   where = " AND ".join([where_parser(*item) for item in kwargs.items()])
-  query_filter = (" WHERE" + where) if kwargs.__len__() > 0 else ''
+  query_filter = (" WHERE " + where) if kwargs.__len__() > 0 else ''
   query = "SELECT %s FROM %s  %s" % (sf_fields, sf_object, query_filter)
   records = sf.query(query=query)
-  return records
+
+  count = len(records)
+  result = {}
+  
+  if count > 0:
+    recordArray = {}
+    for record in records:
+      recordArray[str(records.index(record))] = flatten_json(record)
+
+    result['sf_records'] = recordArray
+  else:
+    result['sf_records'] = {}
+
+  result['sf_count'] = count
+  return flatten_json(result, '_')
 
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def query(sf, query, **kwargs):
@@ -146,16 +182,16 @@ def query(sf, query, **kwargs):
   result = {}
   
   if count > 0:
-    recordArray = []
-    for record in records :
-      recordArray.append(flatten_json(record))
+    recordArray = {}
+    for record in records:
+      recordArray[str(records.index(record))] = flatten_json(record)
 
     result['sf_records'] = recordArray
   else:
-    result['sf_records'] = []
+    result['sf_records'] = {}
 
   result['sf_count'] = count
-  return result
+  return flatten_json(result, '_')
 
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def queryOne(sf, query, **kwargs):
@@ -209,16 +245,16 @@ def search(sf, q, sf_fields, sf_object, where="", overallLimit=100, **kwargs):
   result = {}
   
   if count > 0:
-    recordArray = []
+    recordArray = {}
     for record in records:
-      recordArray.append(flatten_json(record))
+      recordArray[str(records.index(record))] = flatten_json(record)
 
     result['sf_records'] = recordArray
   else:
-    result['sf_records'] = []
+    result['sf_records'] = {}
 
   result['sf_count'] = count
-  return result
+  return flatten_json(result, '_')
 
 def searchOne(sf, q, sf_fields, sf_object, where="", **kwargs):
   obj = [ { 'name': sf_object } ]
@@ -236,13 +272,45 @@ def searchOne(sf, q, sf_fields, sf_object, where="", **kwargs):
   result['sf_count'] = count
   return result
 
-def flatten_json(nested_json):
+def searchSOSL(sf, query, **kwargs):
+  for key, value in kwargs.items():
+    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    query = query.replace(key, value)
+
+  records = sf.search(query=query)
+  count = len(records)
+  result = {}
+  
+  if count > 0:
+    recordArray = {}
+    for record in records:
+      recordArray[str(records.index(record))] = flatten_json(record)
+
+    result['sf_records'] = recordArray
+  else:
+    result['sf_records'] = {}
+
+  result['sf_count'] = count
+  return flatten_json(result, '_')
+
+def searchOneSOSL(sf, query, **kwargs):
+  for key, value in kwargs.items():
+    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    query = query.replace(key, value)
+
+  records = sf.query(query=query)
+  count = len(records)
+  result = flatten_json(records[0]) if count == 1 else {}
+  result['sf_count'] = count
+  return result
+
+def flatten_json(nested_json, separator = '.'):
   out = {}
     
   def flatten(x, name=''):
     if type(x) is dict:
       for a in x:
-        flatten(x[a], name + a + '.')
+        flatten(x[a], name + a + separator)
     elif type(x) is list:
       i = 0
       for a in x: 

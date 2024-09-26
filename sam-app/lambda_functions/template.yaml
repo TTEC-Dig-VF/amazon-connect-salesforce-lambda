@@ -32,25 +32,22 @@ Parameters:
     Description: True for Production Environment, False for Sandbox
     Type: String
     AllowedPattern: ^([Tt]rue|[Ff]alse)$
-    AllowedValues:
-    - true
-    - true
-    - false
-    - false
-    ConstraintDescription: True or False
   SalesforceHost:
+    Default: https://...
     Description: Your Salesforce Host. Please make sure the host url starts with "https".
-    AllowedPattern: https(.*)
+    AllowedPattern: (^$|^https(.*))
     Type: String
   SalesforceUsername:
-    Default: Salesforce API Username
-    Description: The username of a valid Salesforce API account for your environment.
+    Default: apiuser@<yoursalesforcedomain>.com
+    Description: The username of a valid Salesforce API account for your environment. Salesforce usernames are in the form of an email address.
       For example, user@domain.com
     Type: String
+    AllowedPattern: ^.+@.+\..+$
   SalesforceVersion:
     Default: v42.0
-    Description: To find the Salesforce Edition and API Version please visit https://help.salesforce.com/articleView?id=000199268&type=1
+    Description: To find the Salesforce Edition and API Version please visit https://help.salesforce.com/articleView?id=000199268&type=1. The pattern for this field is vXX.X
     Type: String
+    AllowedPattern: ^v[0-9]+\.[0-9]+$
   ConnectReportingS3BucketName:
     Default: ''
     Description: This is the S3 bucket where Amazon Connect stores scheduled reports. Please refer to http://docs.aws.amazon.com/connect/latest/adminguide/amazon-connect-instance.html#datastorage
@@ -90,6 +87,10 @@ Parameters:
     Type: Number
     Default: 100
     Description: Maximum retry attempts on failure for lambdas triggered by Kinesis Events
+  CTREventSourceMappingBatchSize:
+    Type: Number
+    Default: 30
+    Description: Batch size for lambdas triggered by Kinesis Events
   SalesforceAdapterNamespace:
     Default: 'amazonconnect'
     Description: This is the namespace for CTI Adapter managed package. The default value is [amazonconnect]. If a non-managed package is used, leave this field blank.
@@ -120,50 +121,37 @@ Parameters:
     Default: true
     Description: Set to false if importing call recordings into Salesforce should not be enabled on the package level. See installation guide for setup details.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   PostcallTranscribeEnabled:
     Default: true
     Description: Set to false if post-call transcription should not be enabled on the package level. See installation guide for setup details.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   PostcallCTRImportEnabled:
     Default: true
     Description: Set to false if importing CTRs into Salesforce should not be enabled on the package level.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   HistoricalReportingImportEnabled:
     Default: true
     Description: Set to false if importing Historical Reporting into Salesforce should not be enabled.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   RealtimeReportingImportEnabled:
     Default: true
     Description: Set to false if importing Realtime Reporting into Salesforce should not be enabled.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
+  ContactLensImportEnabled:
+    Default: true
+    Description: Set to false if importing Contact Lens into Salesforce should not be enabled.
+    Type: String
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   PrivateVpcEnabled:
     Default: false
     Description: Set to true if functions should be deployed to a private VPC, set VpcSecurityGroupList and VpcSubnetList if true
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-      - true
-      - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   VpcSecurityGroupList:
     Type: CommaDelimitedList
     Description: The list of SecurityGroupIds for the Virtual Private Cloud (VPC). Not required if PrivateVpcEnabled is set to false.
@@ -175,30 +163,81 @@ Parameters:
 
 
 Conditions:
-  PostcallRecordingImportEnabledCondition: !Equals [!Ref PostcallRecordingImportEnabled, true ]
-  PostcallTranscribeEnabledCondition: !Equals [!Ref PostcallTranscribeEnabled, true]
-  PostcallCTRImportEnabledCondition: !Equals [!Ref PostcallCTRImportEnabled, true]
-  HistoricalReportingImportEnabledCondition: !Equals [!Ref HistoricalReportingImportEnabled, true]
-  RealtimeReportingImportEnabledCondition: !Equals [!Ref RealtimeReportingImportEnabled, true]
-  PrivateVpcEnabledCondition: !Equals [!Ref PrivateVpcEnabled, true]
+  PostcallRecordingImportEnabledCondition: !Or [!Equals [!Ref PostcallRecordingImportEnabled, true ], !Equals [!Ref PostcallRecordingImportEnabled, 'True' ]]
+  PostcallTranscribeEnabledCondition: !Or [!Equals [!Ref PostcallTranscribeEnabled, true], !Equals [!Ref PostcallTranscribeEnabled, 'True']]
+  PostcallCTRImportEnabledCondition: !Or [!Equals [!Ref PostcallCTRImportEnabled, true], !Equals [!Ref PostcallCTRImportEnabled, 'True']]
+  HistoricalReportingImportEnabledCondition: !Or [!Equals [!Ref HistoricalReportingImportEnabled, true], !Equals [!Ref HistoricalReportingImportEnabled, 'True']]
+  RealtimeReportingImportEnabledCondition: !Or [!Equals [!Ref RealtimeReportingImportEnabled, true], !Equals [!Ref RealtimeReportingImportEnabled, 'True']]
+  ContactLensImportEnabledCondition: !Or [!Equals [!Ref ContactLensImportEnabled, true], !Equals [!Ref ContactLensImportEnabled, 'True']]
+  PrivateVpcEnabledCondition: !Or [!Equals [!Ref PrivateVpcEnabled, true], !Equals [!Ref PrivateVpcEnabled, 'True']]
+  ConnectReportingS3BucketNameHasValue: !Not [!Equals [!Ref ConnectReportingS3BucketName, '']]
+  ConnectRecordingS3BucketNameHasValue: !Not [!Equals [!Ref ConnectRecordingS3BucketName, '']]
+  TranscribeOutputS3BucketNameHasValue: !Not [!Equals [!Ref TranscribeOutputS3BucketName, '']]
+  SalesforceCredentialsSecretsManagerARNHasValue: !Not [!Equals [!Ref SalesforceCredentialsSecretsManagerARN, '']]
+  SalesforceCredentialsKMSKeyARNHasValue: !Not [!Equals [!Ref SalesforceCredentialsKMSKeyARN, '']]
+  CTRKinesisARNHasValue: !Not [!Equals [!Ref CTRKinesisARN, '']]
+  AmazonConnectInstanceIdHasValue: !Not [!Equals [!Ref AmazonConnectInstanceId, '']]
 
   CTREventSourceMappingCondition:
-    !Or
-    - Condition: PostcallRecordingImportEnabledCondition
+    !And
+      - Condition: CTRKinesisARNHasValue
+      - !Or
+        - Condition: PostcallRecordingImportEnabledCondition
+        - Condition: PostcallTranscribeEnabledCondition
+        - Condition: PostcallCTRImportEnabledCondition
+  sfSubmitTranscribeJobConnectRecordingS3PolicyCondition:
+    !And
+      - Condition: PostcallTranscribeEnabledCondition
+      - Condition: ConnectRecordingS3BucketNameHasValue
+  sfSubmitTranscribeJobTranscribeOutputS3PolicyCondition:
+    !And
     - Condition: PostcallTranscribeEnabledCondition
-    - Condition: PostcallCTRImportEnabledCondition
-
-  PostcallTranscribeRecordingImportEnabledCondition:
-    !Or
+    - Condition: TranscribeOutputS3BucketNameHasValue
+  sfExecuteTranscriptionStateMachineRecordingS3PolicyCondition:
+    !And
     - Condition: PostcallRecordingImportEnabledCondition
+    - Condition: ConnectRecordingS3BucketNameHasValue
+  sfProcessContactLensRecordingS3PolicyCondition:
+    !And
+    - Condition: ContactLensImportEnabledCondition
+    - Condition: ConnectRecordingS3BucketNameHasValue
+    - Condition: AmazonConnectInstanceIdHasValue
+  sfProcessContactLensDataS3PolicyCondition:
+    !And
+    - Condition: ContactLensImportEnabledCondition
+    - Condition: ConnectRecordingS3BucketNameHasValue
+  sfAudioRecordingStreamingCloudFrontDistributionCondition:
+    !And
+    - Condition: PostcallRecordingImportEnabledCondition
+    - Condition: ConnectRecordingS3BucketNameHasValue
+  sfExecuteTranscriptionStateMachineLockS3PolicyCondition:
+    !And
+    - !Or
+      - Condition: PostcallRecordingImportEnabledCondition
+      - Condition: PostcallTranscribeEnabledCondition
+    - Condition: TranscribeOutputS3BucketNameHasValue
+  sfProcessTranscriptionResultS3PolicyCondition:
+    !And
     - Condition: PostcallTranscribeEnabledCondition
-  
+    - Condition: TranscribeOutputS3BucketNameHasValue
+  sfProcessContactLensResultS3PolicyCondition:
+    !And
+    - Condition: ContactLensImportEnabledCondition
+    - Condition: TranscribeOutputS3BucketNameHasValue
+  sfRealTimeQueueMetricsConnectPolicyCondition:
+    !And
+    - Condition: RealtimeReportingImportEnabledCondition
+    - Condition: AmazonConnectInstanceIdHasValue
+  sfProcessContactLensConnectPolicyCondition:
+    !And
+    - Condition: ContactLensImportEnabledCondition
+    - Condition: AmazonConnectInstanceIdHasValue
 
 Globals:
     Function:
         Timeout: 6
-        Runtime: python3.7
-        CodeUri: .
+        Runtime: python3.10
+        CodeUri: ./sam-app-deployment-artifact.zip
         
 Resources:
 
@@ -206,11 +245,25 @@ Resources:
     Type: AWS::Serverless::LayerVersion
     Properties:
       Description: Salesforce Lambda function external dependencies
-      ContentUri: ../lambda_layers
+      ContentUri: ./lambda_layers.zip
       CompatibleRuntimes:
-       - python3.7
+       - python3.10
+
+  invokeSfExecuteAWSServicePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Path: /
+      PolicyDocument:
+        Statement:
+        - Action:
+          - lambda:InvokeFunction
+          Effect: Allow
+          Resource:
+            Fn::GetAtt: sfExecuteAWSService.Arn
+        Version: '2012-10-17'
 
   SecretsManagerManagedPolicy:
+    Condition: SalesforceCredentialsSecretsManagerARNHasValue
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Path: /
@@ -224,13 +277,15 @@ Resources:
         Version: '2012-10-17'
 
   KMSManagedPolicy:
+    Condition: SalesforceCredentialsKMSKeyARNHasValue
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Path: /
       PolicyDocument:
         Statement:
         - Action:
-          - kms:decrypt
+          - kms:Decrypt
+          - kms:GenerateDataKey
           Effect: Allow
           Resource: !Ref SalesforceCredentialsKMSKeyARN
         Version: '2012-10-17'
@@ -279,10 +334,180 @@ Resources:
           - sts:AssumeRole
       Path: /
       ManagedPolicyArns:
-      - !Ref SecretsManagerManagedPolicy
-      - !Ref KMSManagedPolicy
+      - !If [SalesforceCredentialsSecretsManagerARNHasValue, !Ref SecretsManagerManagedPolicy, !Ref AWS::NoValue]
+      - !If [SalesforceCredentialsKMSKeyARNHasValue, !Ref KMSManagedPolicy, !Ref AWS::NoValue]
       - !Ref CloudWatchManagedPolicy
       - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
+  
+  sfExecuteAWSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref CloudWatchManagedPolicy
+        - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
+      Policies:
+      - Fn::If:
+        - AmazonConnectInstanceIdHasValue
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - connect:ResumeContactRecording
+              - connect:UpdateContactAttributes
+              - connect:StartContactRecording
+              - connect:SuspendContactRecording
+              - connect:StopContactRecording
+              Effect: Allow
+              Resource: 
+                Fn::Sub: arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${AmazonConnectInstanceId}/*
+            Version: '2012-10-17'
+          PolicyName: sfExecuteAWSServiceConnectContactLensPolicy
+        - !Ref AWS::NoValue
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - connect:CreateInstance
+            - connect:ListInstances
+            - connect:AssociateApprovedOrigin
+            - connect:AssociateInstanceStorageConfig
+            - connect:ListInstanceStorageConfigs
+            - connect:UpdateInstanceStorageConfig
+            - ds:DescribeDirectories
+            - ds:AuthorizeApplication
+            - ds:CheckAlias
+            - ds:CreateAlias
+            - ds:CreateIdentityPoolDirectory
+            - ds:DeleteDirectory
+            - ds:UnauthorizeApplication
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: sfExecuteAWSServiceConnectGuidedSetupInstancePolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - kms:CreateGrant
+            - kms:DescribeKey
+            Effect: Allow
+            Resource:
+              Fn::Sub: arn:aws:kms:*:${AWS::AccountId}:key/*
+          Version: '2012-10-17'
+        PolicyName: sfExecuteAWSServiceConnectGuidedSetupInstancePolicyKMS
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - s3:GetBucketLocation
+            - s3:GetBucketAcl
+            - s3:CreateBucket
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: sfExecuteAWSServiceConnectGuidedSetupInstancePolicyS3
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - kinesis:CreateStream
+            - kinesis:DescribeStream
+            Effect: Allow
+            Resource: 
+              Fn::Sub: arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/*
+          Version: '2012-10-17'
+        PolicyName: sfExecuteAWSServiceConnectGuidedSetupInstancePolicyKinesis
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - iam:PutRolePolicy
+            - iam:CreateServiceLinkedRole
+            Effect: Allow
+            Resource: 
+              Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/aws-service-role/connect.amazonaws.com*
+          Version: '2012-10-17'
+        PolicyName: sfExecuteAWSServiceServiceLinkedRolePolicy
+      - Fn::If:
+        - sfAudioRecordingStreamingCloudFrontDistributionCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - cloudfront:GetDistributionConfig
+              - cloudfront:UpdateDistribution
+              Effect: Allow
+              Resource: 
+                Fn::Sub: arn:aws:cloudfront::${AWS::AccountId}:distribution/${sfAudioRecordingStreamingCloudFrontDistribution}
+            Version: '2012-10-17'
+          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyCloudfront
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfAudioRecordingStreamingCloudFrontDistributionCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - iam:PassRole
+              Effect: Allow
+              Resource:
+                Fn::GetAtt: sfSig4RequestToS3Role.Arn
+            Version: '2012-10-17'
+          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyIAM
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfAudioRecordingStreamingCloudFrontDistributionCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - cloudfront:CreatePublicKey
+              - cloudfront:CreateKeyGroup
+              Effect: Allow
+              Resource: '*'
+            Version: '2012-10-17'
+          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyCloudfrontKey
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfAudioRecordingStreamingCloudFrontDistributionCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - lambda:EnableReplication
+              - lambda:PublishVersion
+              - lambda:CreateFunction
+              - lambda:GetFunction
+              Effect: Allow
+              Resource:
+                Fn::Sub: arn:aws:lambda:us-east-1:${AWS::AccountId}:function:*-sfSig4RequestToS3*
+            Version: '2012-10-17'
+          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyLambdaReplication
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfAudioRecordingStreamingCloudFrontDistributionCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - lambda:InvokeFunction
+              Effect: Allow
+              Resource:
+                Fn::GetAtt: sfGenerateAudioRecordingStreamingURL.Arn
+            Version: '2012-10-17'
+          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyLambdaInvoke
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfAudioRecordingStreamingCloudFrontDistributionCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - s3:GetBucketCors
+              - s3:PutBucketCors
+              Effect: Allow
+              Resource:
+                Fn::Sub: "arn:aws:s3:::${ConnectRecordingS3BucketName}"
+            Version: '2012-10-17'
+          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyS3
+        - !Ref AWS::NoValue
 
   sfLambdaBasicExecWithS3Read:
     Type: AWS::IAM::Role
@@ -298,8 +523,8 @@ Resources:
           - sts:AssumeRole
       Path: /
       ManagedPolicyArns:
-      - !Ref SecretsManagerManagedPolicy
-      - !Ref KMSManagedPolicy
+      - !If [SalesforceCredentialsSecretsManagerARNHasValue, !Ref SecretsManagerManagedPolicy, !Ref AWS::NoValue]
+      - !If [SalesforceCredentialsKMSKeyARNHasValue, !Ref KMSManagedPolicy, !Ref AWS::NoValue]
       - !Ref CloudWatchManagedPolicy
       - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
@@ -330,13 +555,13 @@ Resources:
             - sts:AssumeRole
       Path: /
       ManagedPolicyArns:
-      - !Ref SecretsManagerManagedPolicy
-      - !Ref KMSManagedPolicy
+      - !If [SalesforceCredentialsSecretsManagerARNHasValue, !Ref SecretsManagerManagedPolicy, !Ref AWS::NoValue]
+      - !If [SalesforceCredentialsKMSKeyARNHasValue, !Ref KMSManagedPolicy, !Ref AWS::NoValue]
       - !Ref CloudWatchManagedPolicy
       - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - Fn::If:
-        - RealtimeReportingImportEnabledCondition
+        - sfRealTimeQueueMetricsConnectPolicyCondition
         - PolicyDocument:
             Statement:
             - Action:
@@ -364,6 +589,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -389,6 +615,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -413,6 +640,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -423,7 +651,7 @@ Resources:
           Version: '2012-10-17'
         PolicyName: sfSubmitTranscribeJobTranscribePolicy
       - Fn::If:
-        - PostcallTranscribeEnabledCondition
+        - sfSubmitTranscribeJobConnectRecordingS3PolicyCondition
         - PolicyDocument:
             Statement:
             - Action:
@@ -434,9 +662,9 @@ Resources:
                 - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
             Version: '2012-10-17'
           PolicyName: sfSubmitTranscribeJobConnectRecordingS3Policy
-        - Ref: AWS::NoValue
+        - !Ref AWS::NoValue
       - Fn::If:
-        - PostcallTranscribeEnabledCondition
+        - sfSubmitTranscribeJobTranscribeOutputS3PolicyCondition
         - PolicyDocument:
             Statement:
             - Action:
@@ -447,7 +675,7 @@ Resources:
                 - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
             Version: '2012-10-17'
           PolicyName: sfSubmitTranscribeJobTranscribeOutputS3Policy
-        - Ref: AWS::NoValue
+        - !Ref AWS::NoValue
 
   sfExecuteTranscriptionStateMachineRole:
     Type: AWS::IAM::Role
@@ -463,6 +691,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -475,7 +704,7 @@ Resources:
           Version: '2012-10-17'
         PolicyName: sfExecuteTranscriptionStateMachineStepFunctionPolicy
       - Fn::If:
-        - PostcallTranscribeRecordingImportEnabledCondition
+        - sfExecuteTranscriptionStateMachineLockS3PolicyCondition
         - PolicyDocument:
             Statement:
             - Action:
@@ -488,9 +717,9 @@ Resources:
                 - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
             Version: '2012-10-17'
           PolicyName: sfExecuteTranscriptionStateMachineLockS3Policy
-        - Ref: AWS::NoValue
+        - !Ref AWS::NoValue
       - Fn::If:
-        - PostcallRecordingImportEnabledCondition 
+        - sfExecuteTranscriptionStateMachineRecordingS3PolicyCondition
         - PolicyDocument:
             Statement:
             - Action:
@@ -500,7 +729,7 @@ Resources:
                 - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
             Version: '2012-10-17'
           PolicyName: sfExecuteTranscriptionStateMachineRecordingS3Policy
-        - Ref: AWS::NoValue
+        - !Ref AWS::NoValue
       - PolicyDocument:
           Statement:
           - Action:
@@ -525,15 +754,18 @@ Resources:
             - edgelambda.amazonaws.com
         Version: '2012-10-17'
       Policies:
-      - PolicyDocument:
-          Statement:
-          - Action:
-            - s3:GetObject
-            Effect: Allow
-            Resource: 
-              - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
-          Version: '2012-10-17'
-        PolicyName: sfSig4RequestToS3RolePolicy
+      - Fn::If:
+        - ConnectRecordingS3BucketNameHasValue
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - s3:GetObject
+              Effect: Allow
+              Resource: 
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfSig4RequestToS3RolePolicy
+        - !Ref AWS::NoValue
       ManagedPolicyArns:
         - !Ref CloudWatchManagedPolicy
 
@@ -551,6 +783,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - Fn::If: 
         - CTREventSourceMappingCondition
@@ -592,9 +825,10 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - Fn::If:
-        - PostcallTranscribeEnabledCondition
+        - sfProcessTranscriptionResultS3PolicyCondition
         - PolicyDocument:
             Statement:
             - Action: 
@@ -625,6 +859,82 @@ Resources:
           Version: '2012-10-17'
         PolicyName: sfProcessTranscriptionResultSfInvokeAPIPolicy
 
+  sfProcessContactLensRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      ManagedPolicyArns:
+      - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
+      Policies:
+      - Fn::If:
+        - sfProcessContactLensResultS3PolicyCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              - s3:PutObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensResultS3Policy
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfProcessContactLensRecordingS3PolicyCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/connect/${AmazonConnectInstanceId}/CallRecordings/*
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensRecordingS3Policy
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfProcessContactLensDataS3PolicyCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              - s3:ListBucket
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensDataS3Policy
+        - !Ref AWS::NoValue
+      - Fn::If:
+        - sfProcessContactLensConnectPolicyCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - connect:GetContactAttributes
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${AmazonConnectInstanceId}/contact/*            
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensConnectPolicy
+        - !Ref AWS::NoValue
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              Fn::GetAtt: sfInvokeAPI.Arn
+          Version: '2012-10-17'
+        PolicyName: sfProcessContactLensSfInvokeAPIPolicy
 
   sfTranscribeStateMachineRole:
     Type: AWS::IAM::Role
@@ -704,6 +1014,49 @@ Resources:
                     Ref: SalesforceCredentialsSecretsManagerARN
                 LOGGING_LEVEL:
                     Ref: LambdaLoggingLevel
+
+  sfExecuteAWSService:
+    Type: AWS::Serverless::Function
+    Properties:
+        Handler: sfExecuteAWSService.lambda_handler
+        VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue
+        Role:
+          Fn::GetAtt: sfExecuteAWSServiceRole.Arn
+        Timeout: 10
+        Environment:
+            Variables:
+              GENERATE_AUDIO_RECORDING_LAMBDA:
+                Fn::If:
+                  - sfAudioRecordingStreamingCloudFrontDistributionCondition
+                  - !Ref sfGenerateAudioRecordingStreamingURL
+                  - !Ref AWS::NoValue
+              CLOUDFORMATION_STACK_ID:
+                Ref: AWS::StackId
+              CLOUDFORMATION_STACK_NAME:
+                Ref: AWS::StackName
+              LOGGING_LEVEL:
+                Ref: LambdaLoggingLevel
+              CLOUDFRONT_DISTRIBUTION_ID:
+                Fn::If:
+                  - sfAudioRecordingStreamingCloudFrontDistributionCondition
+                  - !Ref sfAudioRecordingStreamingCloudFrontDistribution
+                  - !Ref AWS::NoValue
+              RECORDING_BUCKET_NAME:
+                Ref: ConnectRecordingS3BucketName
+              NAMESPACE:
+                Ref: SalesforceAdapterNamespace
+              SALESFORCE_HOST:
+                Ref: SalesforceHost
+              SIG4_LAMBDA_ROLE_ARN:
+                Fn::If:
+                  - PostcallRecordingImportEnabledCondition
+                  - Fn::GetAtt: sfSig4RequestToS3Role.Arn
+                  - !Ref AWS::NoValue
 
   sfContactTraceRecord:
     Type: AWS::Serverless::Function
@@ -843,6 +1196,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfRealTimeQueueMetricsLoopJob.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfRealTimeQueueMetricsLoopJobRole.Arn
       Layers:
@@ -856,10 +1215,16 @@ Resources:
             Ref: LambdaLoggingLevel
 
   sfGenerateAudioRecordingStreamingURL:
-    Condition: PostcallRecordingImportEnabledCondition
+    Condition: sfAudioRecordingStreamingCloudFrontDistributionCondition
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfGenerateAudioRecordingStreamingURL.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfLambdaBasicExec.Arn
       Layers:
@@ -876,32 +1241,8 @@ Resources:
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
 
-  sfSig4RequestToS3:
-    Condition: PostcallRecordingImportEnabledCondition
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: sfSig4RequestToS3.handler
-      Runtime: nodejs12.x
-      AutoPublishAlias: live
-      Role:
-        Fn::GetAtt: sfSig4RequestToS3Role.Arn
-
-  invokeSfGenerateAudioRecordingStreamingURLPolicy:
-    Condition: PostcallRecordingImportEnabledCondition
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      Path: /
-      PolicyDocument:
-        Statement:
-        - Action:
-          - lambda:InvokeFunction
-          Effect: Allow
-          Resource:
-            Fn::GetAtt: sfGenerateAudioRecordingStreamingURL.Arn
-        Version: '2012-10-17'
-
   sfAudioRecordingStreamingCloudFrontDistribution:
-    Condition: PostcallRecordingImportEnabledCondition
+    Condition: sfAudioRecordingStreamingCloudFrontDistributionCondition
     Type: AWS::CloudFront::Distribution
     Properties: 
       DistributionConfig:
@@ -913,10 +1254,6 @@ Resources:
             TargetOriginId: AudioRecordingStreamingCloudFrontOrigin
             TrustedSigners: [self]
             ViewerProtocolPolicy: redirect-to-https
-            LambdaFunctionAssociations:
-                - 
-                  EventType: origin-request
-                  LambdaFunctionARN: !Ref sfSig4RequestToS3.Version
           Enabled: true
           IPV6Enabled: true
           Origins: 
@@ -929,12 +1266,17 @@ Resources:
             OriginCustomHeaders:
             - HeaderName: Access-Control-Allow-Origin
               HeaderValue: !Ref SalesforceHost
-            OriginPath: /connect
 
   sfGetTranscribeJobStatus:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfGetTranscribeJobStatus.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfGetTranscribeJobStatusRole.Arn
       Layers:
@@ -949,6 +1291,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfSubmitTranscribeJob.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue
       Role:
         Fn::GetAtt: sfSubmitTranscribeJobRole.Arn
       Layers:
@@ -963,6 +1311,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfExecuteTranscriptionStateMachine.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfExecuteTranscriptionStateMachineRole.Arn
       Layers:
@@ -983,6 +1337,10 @@ Resources:
             Fn::GetAtt: sfInvokeAPI.Arn
           SF_ADAPTER_NAMESPACE:
             Ref: SalesforceAdapterNamespace
+          AMAZON_CONNECT_INSTANCE_ID:
+            Ref: AmazonConnectInstanceId
+          AMAZON_CONNECT_INSTANCE_REGION:
+            Ref: AWS::Region
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
 
@@ -990,6 +1348,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfCTRTrigger.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfCTRTriggerRole.Arn
       Layers:
@@ -1019,13 +1383,19 @@ Resources:
       FunctionName: 
         Fn::GetAtt: sfCTRTrigger.Arn
       StartingPosition: "LATEST"
-      BatchSize: 100
+      BatchSize: !Ref CTREventSourceMappingBatchSize
       MaximumRetryAttempts: !Ref CTREventSourceMappingMaximumRetryAttempts
 
   sfProcessTranscriptionResult:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfProcessTranscriptionResult.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfProcessTranscriptionResultRole.Arn
       Layers:
@@ -1040,6 +1410,36 @@ Resources:
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
 
+  sfProcessContactLens:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfProcessContactLens.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
+      Role:
+        Fn::GetAtt: sfProcessContactLensRole.Arn
+      Timeout: 60
+      Layers:
+        - Ref: sfLambdaLayer
+      Environment:
+        Variables:
+          SFDC_INVOKE_API_LAMBDA:
+            Fn::GetAtt: sfInvokeAPI.Arn
+          SF_ADAPTER_NAMESPACE:
+            Ref: SalesforceAdapterNamespace
+          TRANSCRIPTS_DESTINATION:
+            Ref: TranscribeOutputS3BucketName
+          CONTACT_LENS_IMPORT_ENABLED:
+            Ref: ContactLensImportEnabled
+          AMAZON_CONNECT_INSTANCE_ID:
+            Ref: AmazonConnectInstanceId
+          LOGGING_LEVEL:
+            Ref: LambdaLoggingLevel
+          
 
   sfRealTimeQueueMetricsLoopJobStateMachine:
     Type: AWS::StepFunctions::StateMachine
@@ -1220,5 +1620,3 @@ Resources:
               - Effect: Allow
                 Action: states:StartExecution
                 Resource: !Ref sfRealTimeQueueMetricsLoopJobStateMachine
-
-

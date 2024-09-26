@@ -28,10 +28,7 @@ import boto3
 import urllib.parse
 from salesforce import Salesforce
 from sf_util import get_arg, parse_date, split_bucket_key
-
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 objectnamespace = os.environ['SF_ADAPTER_NAMESPACE']
 
@@ -100,7 +97,7 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
         current_metrics = [
                     { 'Name': 'AGENTS_ONLINE', 'Unit': 'COUNT' },
                     { 'Name': 'AGENTS_AVAILABLE', 'Unit': 'COUNT' },
-                    { 'Name': 'AGENTS_ON_CALL', 'Unit': 'COUNT' },
+                    { 'Name': 'AGENTS_ON_CONTACT', 'Unit': 'COUNT' },
                     { 'Name': 'AGENTS_STAFFED', 'Unit': 'COUNT' },
                     { 'Name': 'AGENTS_AFTER_CONTACT_WORK', 'Unit': 'COUNT' },
                     { 'Name': 'AGENTS_NON_PRODUCTIVE', 'Unit': 'COUNT' },
@@ -114,7 +111,7 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
             if next_token == 'NoToken':
                 logger.info("Call QueueMetric : without no token")
                 currentMetrics_data = connect.get_current_metric_data(InstanceId = instance_id,
-                    Filters = {'Channels': ['VOICE'],'Queues': queue_ids},
+                    Filters = {'Channels': ['VOICE', 'CHAT', 'TASK'], 'Queues': queue_ids},
                     Groupings = ['QUEUE'],
                     CurrentMetrics = current_metrics,
                     MaxResults = int(queuemetics_max_result)
@@ -122,7 +119,7 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
             else:
                 logger.info("Call QueueMetric : with token")
                 currentMetrics_data = connect.get_current_metric_data(InstanceId = instance_id,
-                    Filters = {'Channels': ['VOICE'],'Queues': queue_ids},
+                    Filters = {'Channels': ['VOICE', 'CHAT', 'TASK'], 'Queues': queue_ids},
                     Groupings = ['QUEUE'],
                     CurrentMetrics = current_metrics,
                     MaxResults = int(queuemetics_max_result),
@@ -148,7 +145,6 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
 
 
             sf = Salesforce()
-            sf.sign_in()
 
             if len(metricresults_data) !=0:
                 while i < len(metricresults_data):
@@ -184,7 +180,7 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
                                 elif metric_data['Name'] == 'AGENTS_AVAILABLE' and 'Value' in metrics_data.keys() :
                                     agent_available = int(metrics_data['Value'])
                                     queue_metics_data_dict['agent_available'] = agent_available
-                                elif metric_data['Name'] == 'AGENTS_ON_CALL' and 'Value' in metrics_data.keys() :
+                                elif metric_data['Name'] == 'AGENTS_ON_CONTACT' and 'Value' in metrics_data.keys() :
                                     agent_on_call = int(metrics_data['Value'])
                                     queue_metics_data_dict['agent_on_call'] = agent_on_call
                                 elif metric_data['Name'] == 'AGENTS_STAFFED' and 'Value' in metrics_data.keys() :
@@ -227,7 +223,7 @@ def prepare_record(queue_id_name_dict,queue_metric_data):
     record['Name'] = queue_id_name_dict[queue_metric_data['queue_id']]
     if 'queue_id' in queue_metric_data.keys():
 
-        if 'Queue_ARN__c' in queue_metric_data.keys():
+        if 'queue_arn' in queue_metric_data.keys():
             record[objectnamespace + 'Queue_ARN__c'] = queue_metric_data['queue_arn']
         else:
             record[objectnamespace + 'Queue_ARN__c'] = ''

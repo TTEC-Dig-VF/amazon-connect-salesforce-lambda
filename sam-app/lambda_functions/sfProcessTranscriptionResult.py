@@ -28,9 +28,7 @@ import boto3
 import botocore
 import os
 import base64
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 from sf_util import getS3FileMetadata, getS3FileJSONObject, getBase64String, attachFileSaleforceObject, invokeSfAPI
 from sfComprehendUtil import StartComprehendAnalysis, GetFormattedSentiment, GetFormattedKeywords, GetFormattedDominantLanguage, GetFormattedNamedEntities, GetFormattedSyntax, processTranscript
 
@@ -149,3 +147,4 @@ def updateLock(Bucket, ContactId, oMetadata):
         logger.error('Error lock: {}'.format(e))
         logger.error('Current data: {}'.format(ContactId))
         raise e
+    

@@ -30,9 +30,7 @@ import json
 import base64
 import uuid
 from sf_util import split_s3_bucket_key, invokeSfAPI
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 
 def process_record(record):
@@ -53,7 +51,10 @@ def process_record(record):
                 #check if postcallRecordingImportEnabled then import call recording file into Salesforce
                 if('postcallRecordingImportEnabled' in recordObj["Attributes"] and recordObj["Attributes"]["postcallRecordingImportEnabled"]=='true'):
                     logger.info('postcallRecordingImportEnabled = true')
-                    createACContactChannelAnalyticsSalesforceObject(recordObj['ContactId'], recordObj['Recording']['Location'])
+                    createACContactChannelAnalyticsSalesforceObject(recordObj['ContactId'], recordObj['CustomerEndpoint'], recordObj['Recording']['Location'])
+                elif('postcallRedactedRecordingImportEnabled' in recordObj["Attributes"] and recordObj["Attributes"]["postcallRedactedRecordingImportEnabled"]=="true"):
+                    logger.info('postcallRedactedRecordingImportEnabled = true')
+                    createACContactChannelAnalyticsSalesforceObject(recordObj['ContactId'], recordObj['CustomerEndpoint'])
                 #check if postcallTranscribeEnabled then start the transcribing process
                 if('postcallTranscribeEnabled' in recordObj["Attributes"] and recordObj["Attributes"]["postcallTranscribeEnabled"]=='true' and "postcallTranscribeLanguage" in recordObj["Attributes"]):
                     executeStateMachine(recordObj['Recording']['Location'], recordObj['ContactId'], recordObj["Attributes"]["postcallTranscribeLanguage"])
@@ -148,7 +149,7 @@ def lambda_handler(event, context):
     except Exception as e:
         raise e
 
-def createACContactChannelAnalyticsSalesforceObject(contactId, recordingPath):
+def createACContactChannelAnalyticsSalesforceObject(contactId, customerEndpoint, recordingPath = None):
     pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
     if not pnamespace or pnamespace == '-':
         logger.info("SF_ADAPTER_NAMESPACE is empty")
@@ -161,6 +162,10 @@ def createACContactChannelAnalyticsSalesforceObject(contactId, recordingPath):
     sfRequest['Details']['Parameters']['sf_object'] = pnamespace + 'AC_ContactChannelAnalytics__c'
     sfRequest['Details']['Parameters'][pnamespace + 'ContactId__c'] = contactId
     sfRequest['Details']['Parameters'][pnamespace + 'RecordingPath__c'] = recordingPath
+    sfRequest['Details']['Parameters'][pnamespace + 'CustomerEndpointAddress__c'] = customerEndpoint['Address']
+    sfRequest['Details']['Parameters'][pnamespace + 'InstanceId__c'] = os.environ['AMAZON_CONNECT_INSTANCE_ID']
+    sfRequest['Details']['Parameters'][pnamespace + 'Region__c'] = os.environ['AMAZON_CONNECT_INSTANCE_REGION']
+
 
     ACContactChannelAnalyticsId = invokeSfAPI(sfRequest)['Id']
     logger.info('SF Object Created, with ID: %s' % ACContactChannelAnalyticsId)

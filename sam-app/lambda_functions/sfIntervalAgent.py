@@ -23,15 +23,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json, csv, os
+import json, csv, os, re
 import boto3
 import urllib.parse
 from salesforce import Salesforce
 from sf_util import get_arg, parse_date, split_bucket_key
-
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 s3 = boto3.client("s3")
 pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
@@ -54,19 +51,13 @@ def lambda_handler(event, context):
   data = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode()
   logger.info("sfIntervalAgent data: %s" % data)
   sf = Salesforce()
-  sf.sign_in()
 
 
   for record in csv.DictReader(data.split("\n")):
     logger.info("sfIntervalAgent record: %s" % record)
-    #sf.create(pnamespace + "AC_AgentPerformance__c", prepare_agent_record(record, event_record['eventTime']))
     agent_record = prepare_agent_record(record, event_record['eventTime'])
-    #logger.info("AC_Object_Name__c: %s" % agent_record[pnamespace + 'AC_Object_Name__c'])
-    #logger.info("StartInterval__c: %s" % agent_record[pnamespace + 'StartInterval__c'])
     ac_record_id = "%s%s" % (agent_record[pnamespace + 'AC_Object_Name__c'], agent_record[pnamespace + 'StartInterval__c'])
-    #logger.info("sfIntervalAgent ac_record_id: %s" % ac_record_id)
-    #logger.info("sfIntervalAgent record: %s" % agent_record)
-    #logger.info("sfIntervalAgent record: %s" % agent_record)
+
     sf.update_by_external(pnamespace + "AC_AgentPerformance__c", pnamespace + 'AC_Record_Id__c',ac_record_id, agent_record)
 
   logger.info("done")
@@ -85,8 +76,10 @@ def label_parser(key):
 
   if key.lower() == "agent":
     return pnamespace + "AC_Object_Name__c"
+  
+  key = re.sub(r'[-\s]+', '_', key)
 
-  return pnamespace + "%s__c" % key.replace(" ", "_")
+  return pnamespace + "%s__c" % key
 
 def value_parser(value):
   return value.replace("%", "") if len(value) > 0 else None

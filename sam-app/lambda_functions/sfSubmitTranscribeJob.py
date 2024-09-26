@@ -26,10 +26,8 @@ limitations under the License.
 import boto3
 import json
 import datetime
-import logging
 import os
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 client = boto3.client('transcribe')
 
 def lambda_handler(event, context):
@@ -57,9 +55,14 @@ def lambda_handler(event, context):
         )
         # BELOW IS THE CODE TO FIX SERIALIZATION ON DATETIME OBJECTS
         if "CreationTime" in response["TranscriptionJob"]:
-            response["TranscriptionJob"]["CreationTime"] = str(response["TranscriptionJob"]["CreationTime"])
+            val = response["TranscriptionJob"]["CreationTime"]
+            response["TranscriptionJob"]["CreationTime"] = val.strftime("%Y-%m-%dT%H:%M:%S.%f%z") if isinstance(val, datetime.datetime) else str(val)
+        if "StartTime" in response["TranscriptionJob"]:
+            val = response["TranscriptionJob"]["StartTime"]
+            response["TranscriptionJob"]["StartTime"] = val.strftime("%Y-%m-%dT%H:%M:%S.%f%z") if isinstance(val, datetime.datetime) else str(val)
         if "CompletionTime" in response["TranscriptionJob"]:
-            response["TranscriptionJob"]["CompletionTime"] = str(response["TranscriptionJob"]["CompletionTime"])
+            val = response["TranscriptionJob"]["CompletionTime"]
+            response["TranscriptionJob"]["CompletionTime"] = val.strftime("%Y-%m-%dT%H:%M:%S.%f%z") if isinstance(val, datetime.datetime) else str(val)
         return response["TranscriptionJob"]
     except Exception as e:
         raise(e)
